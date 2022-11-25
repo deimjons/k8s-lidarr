@@ -1,0 +1,154 @@
+#Services
+apiVersion: v1
+kind: Service
+metadata:
+  name: lidarr
+spec:
+  type: LoadBalancer
+  selector:
+    app: lidarr
+  ports:
+    - port: 8686
+      targetPort: 8686
+--- 
+#Volumes
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: lidarr-config-volume
+  labels:
+    app: lidarr
+    type: local
+spec:
+  storageClassName: lidarr-config
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+      path:  /nfs/docker/lidarr/volumes/config
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: music-volume
+  labels:
+    app: lidarr
+    type: local
+spec:
+  storageClassName: music
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+      path:  /nfs/docker/_volumes/music
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: downloads-volume
+  labels:
+    app: lidarr
+    type: local
+spec:
+  storageClassName: downloads
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+      path:  /nfs/docker/_volumes/downloads
+---
+#VolumeClaims
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lidarr-config-claim
+spec:
+  storageClassName: lidarr-config
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 3Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: music-claim
+spec:
+  storageClassName: music
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 3Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: downloads-claim
+spec:
+  storageClassName: downloads
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 3Gi
+--- #Deployments
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lidarr
+spec:
+  selector:
+    matchLabels:
+      app: lidarr
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: lidarr
+    spec:
+      # securityContext:
+      #   runAsUser: 0
+      #   runAsGroup: 0
+      #   fsGroup: 0
+      volumes:
+        - name: lidarr-config-volume
+          persistentVolumeClaim:
+            claimName: lidarr-config-claim
+        - name: music-volume
+          persistentVolumeClaim:
+            claimName: music-claim
+        - name: downloads-volume
+          persistentVolumeClaim:
+            claimName: downloads-claim
+      containers:
+        - name: lidarr
+          image: lscr.io/linuxserver/lidarr:latest
+          env:
+            - name:  PUID
+              value: '1000'
+            - name: PGID
+              value: '1000'
+            - name:  TZ
+              value: 'Europe/Etc/UTC'
+            # - name: UMASK
+            #   value: '022'
+          ports:
+            - containerPort: 8686
+          volumeMounts:
+            - mountPath: /config
+              name: lidarr-config-volume
+            - mountPath: /storage/music
+              name: music-volume
+            - mountPath: /storage/downloads
+              name: downloads-volume
+          resources:
+            limits:
+              memory: '1024Mi'
+              cpu: '250m'
